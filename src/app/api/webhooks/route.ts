@@ -31,6 +31,7 @@ export async function POST(req: Request) {
 
   // 4. Verify the payload.
   const wh = new Webhook(SIGNING_SECRET);
+
   let evt: WebhookEvent;
   try {
     evt = wh.verify(body, {
@@ -46,39 +47,25 @@ export async function POST(req: Request) {
   // 5. Handle "user.created" and "user.updated" events.
   if (evt.type === "user.created" || evt.type === "user.updated") {
     const data = payload.data;
-    const email = data.email_addresses?.[0]?.email_address;
-    if (!email) {
-      console.error("No email provided in payload");
-      return new Response("Invalid user data", { status: 400 });
-    }
 
-    // === Strategy 1: Fetch the current Clerk user to check for our marker.
-    let clerkUser;
-    try {
-      clerkUser = await (await clerkClient()).users.getUser(data.id);
-    } catch (err) {
-      console.error("Error fetching user from Clerk", err);
-      // Proceed with caution if we cannot fetch—assume no marker.
-      clerkUser = null;
-    }
-
-    if (clerkUser?.privateMetadata?.origin === "database_sync") {
+    if (data.user?.privateMetadata?.origin === "database_sync") {
       console.log(
         `Skipping processing for ${data.id} because it was updated by database_sync`
       );
       return new Response("", { status: 200 });
     }
-
+    
     // === Upsert the user in our database.
     const user: Partial<User> = {
       id: data.id,
       name: `${data.first_name} ${data.last_name}`,
-      email,
+      email: data.email_addresses[0].email_address,
       picture: data.image_url,
     };
 
+    if(!user) return;
     const dbUser = await db.user.upsert({
-      where: { email },
+      where: { email: user.email },
       update: user,
       create: {
         id: user.id!,
@@ -88,6 +75,7 @@ export async function POST(req: Request) {
         role: user.role || "USER",
       },
     });
+
     // Update user's metadata in Clerk with the role information
   const client = await clerkClient();
   await client.users.updateUserMetadata(data.id, {
@@ -96,7 +84,6 @@ export async function POST(req: Request) {
       origin: "database_sync",
     },
   });
-    console.log(`Upserted user ${email} in the database.`);
   }
 
   // 6. Handle "user.deleted" events.
@@ -105,7 +92,6 @@ export async function POST(req: Request) {
     await db.user.delete({
       where: { id: userId },
     });
-    console.log(`Deleted user ${userId} from the database.`);
   }
   // 7. Return a 200 response.
   return new Response("", { status: 200 });
