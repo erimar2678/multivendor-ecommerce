@@ -3,33 +3,35 @@
 import { Category } from '@prisma/client'
 
 // React
-import {FC, useEffect} from "react";
+import { FC, useEffect } from "react";
 
 // Form handling utilities
 import * as z from 'zod'
-import {useForm} from "react-hook-form";
-import {CategoryFormSchema} from "@/lib/schemas";
-import {zodResolver} from "@hookform/resolvers/zod";
-import {AlertDialog} from "@/components/ui/alert-dialog";
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
-import {Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { CategoryFormSchema } from "@/lib/schemas";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertDialog } from "@/components/ui/alert-dialog";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import ImageUpload from '../shared/image-upload';
 
 interface CategoryDetailsProps {
-    data?:Category
+    data?: Category
+    cloudinary_key: string
 }
 
-const CategoryDetails:FC<CategoryDetailsProps> = ({ data }) => {
+const CategoryDetails: FC<CategoryDetailsProps> = ({ data, cloudinary_key }) => {
     // form hook for managing form state and validation
     const form = useForm<z.infer<typeof CategoryFormSchema>>({
-        mode:'onChange', // form validation mode
-        resolver:zodResolver(CategoryFormSchema), // Resolver for form validation
+        mode: 'onChange', // form validation mode
+        resolver: zodResolver(CategoryFormSchema), // Resolver for form validation
         defaultValues: {
             // Setting default form values from data (if available)
             name: data?.name,
-            image: data?.image ? [{url:data?.image}] : [],
+            image: data?.image ? [{ url: data?.image }] : [],
             url: data?.url,
             featured: data?.featured,
         }
@@ -72,10 +74,37 @@ const CategoryDetails:FC<CategoryDetailsProps> = ({ data }) => {
                         className={'space-y-4'}
                     >
                         <FormField
+                            control={form.control}
+                            name='image'
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormControl>
+                                        <ImageUpload
+                                            type='profile'
+                                            cloudinary_key={cloudinary_key}
+                                            value={field.value.map((image) => image.url)}
+                                            disabled={isLoading}
+                                            onChange={(url) =>
+                                                field.onChange([...field.value, { url }])
+                                            }
+                                            onRemove={(url) =>
+                                                field.onChange([
+                                                    ...field.value.filter(
+                                                        (current) => current.url !== url
+                                                    )
+                                                ])
+                                            }
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
                             disabled={isLoading}
                             control={form.control}
                             name={'name'}
-                            render={({field}) => (
+                            render={({ field }) => (
                                 <FormItem className={'flex-1'}>
                                     <FormLabel>Category Name</FormLabel>
                                     <FormControl>
@@ -89,7 +118,7 @@ const CategoryDetails:FC<CategoryDetailsProps> = ({ data }) => {
                             disabled={isLoading}
                             control={form.control}
                             name={'url'}
-                            render={({field}) => (
+                            render={({ field }) => (
                                 <FormItem className={'flex-1'}>
                                     <FormLabel>Category Url</FormLabel>
                                     <FormControl>
@@ -103,7 +132,7 @@ const CategoryDetails:FC<CategoryDetailsProps> = ({ data }) => {
                             disabled={isLoading}
                             control={form.control}
                             name={'featured'}
-                            render={({field}) => (
+                            render={({ field }) => (
                                 <FormItem className={'flex flex-row items-start space-x-3 splace-y-0 rounded-md'}>
                                     <FormControl>
                                         <Checkbox
